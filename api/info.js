@@ -1,4 +1,4 @@
-// هذا هو الخادم الوهمي الذي سيحل المشكلة
+// الخادم الوهمي القوي الذي يعتمد على yt-dlp
 export default async function handler(req, res) {
     // السماح لأي موقع بالتحدث مع هذا الخادم
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,21 +16,36 @@ export default async function handler(req, res) {
     }
 
     try {
-        // --- التغيير هنا: استخدام API جديد وموثوق ---
-        const apiUrl = `https://youtube-dl-api.herokuapp.com/api/info?url=${encodeURIComponent(url)}`;
-        const apiResponse = await fetch(apiUrl);
-        const data = await apiResponse.json();
+        // --- الخطوة 1: جلب معلومات الفيديو والجودات المتاحة ---
+        const infoUrl = `https://yt.8man.com/api/v1/info?url=${encodeURIComponent(url)}`;
+        const infoResponse = await fetch(infoUrl);
 
-        // --- التغيير هنا: التحقق من وجود رابط التحميل ---
-        if (!data.url) {
-            throw new Error('لم يتم العثور على رابط تحميل صالح.');
+        if (!infoResponse.ok) {
+            throw new Error('فشل جلب معلومات الفيديو من الخدمة.');
         }
 
-        // إرسال النتيجة إلى موقعك
-        res.status(200).json({ downloadUrl: data.url });
+        const infoData = await infoResponse.json();
+        const formats = infoData.streamingData.formats;
+
+        // البحث عن أفضل جودة فيديو مع صوت (MP4)
+        let bestFormat = null;
+        for (const format of formats) {
+            if (format.mimeType.includes('video/mp4') && format.audioQuality && format.qualityLabel) {
+                if (!bestFormat || parseInt(format.height) > parseInt(bestFormat.height)) {
+                    bestFormat = format;
+                }
+            }
+        }
+
+        if (!bestFormat) {
+            throw new Error('لم يتم العثور على جودة مناسبة للتحميل.');
+        }
+
+        // إرسال رابط التحميل المباشر إلى موقعك
+        res.status(200).json({ downloadUrl: bestFormat.url });
 
     } catch (error) {
         console.error('API Error:', error);
-        res.status(500).json({ error: 'فشل تحليل الفيديو. قد تكون الخدمة الخارجية غير متوفرة حاليًا، حاول مرة أخرى.' });
+        res.status(500).json({ error: 'فشل تحليل الفيديو. حاول مرة أخرى.' });
     }
 }
