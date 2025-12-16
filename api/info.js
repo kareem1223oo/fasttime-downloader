@@ -1,4 +1,5 @@
-// الخادم الوهمي القوي الذي يعتمد على yt-dlp
+import ytdl from 'ytdl-core';
+
 export default async function handler(req, res) {
     // السماح لأي موقع بالتحدث مع هذا الخادم
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,36 +17,34 @@ export default async function handler(req, res) {
     }
 
     try {
-        // --- الخطوة 1: جلب معلومات الفيديو والجودات المتاحة ---
-        const infoUrl = `https://yt.8man.com/api/v1/info?url=${encodeURIComponent(url)}`;
-        const infoResponse = await fetch(infoUrl);
-
-        if (!infoResponse.ok) {
-            throw new Error('فشل جلب معلومات الفيديو من الخدمة.');
+        // التحقق من الرابط
+        if (!ytdl.validateURL(url)) {
+            return res.status(400).json({ error: 'رابط يوتيوب غير صالح' });
         }
 
-        const infoData = await infoResponse.json();
-        const formats = infoData.streamingData.formats;
+        // جلب معلومات الفيديو والجودات
+        const info = await ytdl.getInfo(url);
+        
+        // اختيار أفضل جودة (فيديو + صوت)
+        const format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' });
 
-        // البحث عن أفضل جودة فيديو مع صوت (MP4)
-        let bestFormat = null;
-        for (const format of formats) {
-            if (format.mimeType.includes('video/mp4') && format.audioQuality && format.qualityLabel) {
-                if (!bestFormat || parseInt(format.height) > parseInt(bestFormat.height)) {
-                    bestFormat = format;
-                }
-            }
-        }
-
-        if (!bestFormat) {
+        if (!format) {
             throw new Error('لم يتم العثور على جودة مناسبة للتحميل.');
         }
 
-        // إرسال رابط التحميل المباشر إلى موقعك
-        res.status(200).json({ downloadUrl: bestFormat.url });
+        // إرسال رابط التحميل المباشر
+        res.status(200).json({ downloadUrl: format.url });
 
     } catch (error) {
-        console.error('API Error:', error);
-        res.status(500).json({ error: 'فشل تحليل الفيديو. حاول مرة أخرى.' });
+        console.error('ytdl-core Error:', error.message);
+        
+        let errorMessage = 'فشل تحليل الفيديو. حاول مرة أخرى.';
+        if (error.message.includes('Video unavailable') || error.message.includes('private')) {
+            errorMessage = 'الفيديو غير متاح أو خاص.';
+        } else if (error.message.includes('This video is restricted')) {
+            errorMessage = 'الفيديو مقيد. لا يمكن تحميله.';
+        }
+        
+        res.status(500).json({ error: errorMessage });
     }
 }
