@@ -16,11 +16,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        // هذا الخادم هو الذي سيتحدث مع API الخارجي
-        const apiResponse = await fetch(`https://api.cobalt.tools/api/json?url=${encodeURIComponent(url)}`);
+        // --- التغيير هنا: استخدام API جديد وموثوق ---
+        const apiUrl = `https://youtube-dl-api.herokuapp.com/api/info?url=${encodeURIComponent(url)}`;
+        const apiResponse = await fetch(apiUrl);
         const data = await apiResponse.json();
 
-        if (data.status !== 'stream' || !data.url) {
+        // --- التغيير هنا: التحقق من وجود رابط التحميل ---
+        if (!data.url) {
             throw new Error('لم يتم العثور على رابط تحميل صالح.');
         }
 
@@ -29,6 +31,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('API Error:', error);
-        res.status(500).json({ error: 'فشل تحليل الفيديو. حاول مرة أخرى.' });
+        res.status(500).json({ error: 'فشل تحليل الفيديو. قد تكون الخدمة الخارجية غير متوفرة حاليًا، حاول مرة أخرى.' });
     }
 }
