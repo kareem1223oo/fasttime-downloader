@@ -1,1 +1,88 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>FastTime - النسخة النهائية</title> 
+    <style>
+        :root { --bg:#0a0a0a; --container:#1a1a1a; --primary:#007bff; --text:#e0e0e0; --border:#333; }
+        body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); display:flex; justify-content:center; align-items:center; min-height:100vh; padding:20px; }
+        .container { background:var(--container); border-radius:12px; padding:40px; max-width:600px; width:100%; text-align:center; box-shadow:0 0 30px rgba(0,123,255,0.2); }
+        h1 { font-size:3rem; color:var(--primary); margin-bottom:10px; }
+        p { color:#a0a0a0; margin-bottom:30px; }
+        #form { display:flex; gap:10px; margin-bottom:30px; }
+        #url { flex-grow:1; padding:15px; background:#2a2a2a; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:1rem; }
+        #url:focus { outline:none; border-color:var(--primary); }
+        button { padding:15px 25px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:1rem; font-weight:bold; cursor:pointer; transition: background 0.3s; }
+        button:hover { background:#0056b3; }
+        #results { display:none; text-align:right; margin-top: 20px; }
+        .download-btn { display: inline-block; padding:15px 30px; background:#28a745; color:white; border-radius:8px; text-decoration:none; font-weight:bold; transition: background 0.3s; }
+        .download-btn:hover { background:#218838; }
+        .loader { display:none; border:3px solid #f3f3f3; border-top:3px solid var(--primary); border-radius:50%; width:20px; height:20px; animation:spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>FastTime</h1>
+        <p>محمل فيديوهات يوتيوب السريع (النسخة النهائية)</p>
+        <form id="form">
+            <input type="url" id="url" placeholder="ألصق رابط يوتيوب هنا..." required>
+            <button type="submit" id="submit-btn">
+                <span id="btn-text">حلل</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </form>
+        <div id="results">
+            <!-- سيتم وضع زر التحميل هنا -->
+        </div>
+    </div>
 
+    <script>
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const videoUrl = document.getElementById('url').value.trim();
+            const resultsDiv = document.getElementById('results');
+            const btnText = document.getElementById('btn-text');
+            const loader = document.getElementById('loader');
+
+            if (!videoUrl) { alert('الرجاء إدخال رابط فيديو يوتيوب.'); return; }
+
+            btnText.style.display = 'none';
+            loader.style.display = 'inline-block';
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+
+            try {
+                // **التغيير الأهم:** نحن الآن نطلب من خادمنا الوهمي، وليس من API خارجي
+                const response = await fetch(`/api/info?url=${encodeURIComponent(videoUrl)}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'فشلت عملية التحليل.');
+                }
+
+                const { downloadUrl } = await response.json();
+
+                // إنشاء زر التحميل
+                const downloadLink = document.createElement('a');
+                downloadLink.href = downloadUrl;
+                downloadLink.className = 'download-btn';
+                downloadLink.innerText = 'اضغط هنا للتحميل';
+                downloadLink.target = '_blank';
+
+                resultsDiv.appendChild(downloadLink);
+                resultsDiv.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+                alert(`حدث خطأ: ${err.message}`);
+            } finally {
+                btnText.style.display = 'inline';
+                loader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
