@@ -1,5 +1,3 @@
-import ytdl from 'ytdl-core';
-
 export default async function handler(req, res) {
     // السماح لأي موقع بالتحدث مع هذا الخادم
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,40 +9,40 @@ export default async function handler(req, res) {
     }
 
     const { url } = req.query;
+    const apiKey = process.env.RAPIDAPI_KEY; // قراءة المفتاح الآمن من Vercel
 
-    if (!url) {
-        return res.status(400).json({ error: 'الرجاء إدخال رابط يوتيوب' });
+    if (!url || !apiKey) {
+        return res.status(400).json({ error: 'بيانات غير مكتملة.' });
     }
 
     try {
-        // التحقق من الرابط
-        if (!ytdl.validateURL(url)) {
-            return res.status(400).json({ error: 'رابط يوتيوب غير صالح' });
-        }
-
-        // جلب معلومات الفيديو والجودات
-        const info = await ytdl.getInfo(url);
+        const apiUrl = `https://youtube-mp36.p.rapidapi.com/dl?id=${extractVideoId(url)}`;
         
-        // اختيار أفضل جودة (فيديو + صوت)
-        const format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' });
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'X-RapidAPI-Key': apiKey,
+                'X-RapidAPI-Host': 'youtube-mp36.p.rapidapi.com'
+            }
+        });
 
-        if (!format) {
-            throw new Error('لم يتم العثور على جودة مناسبة للتحميل.');
+        const data = await response.json();
+
+        if (data.status === 'ok' && data.link) {
+            res.status(200).json({ downloadUrl: data.link });
+        } else {
+            throw new Error('لم يتم العثور على رابط تحميل.');
         }
-
-        // إرسال رابط التحميل المباشر
-        res.status(200).json({ downloadUrl: format.url });
 
     } catch (error) {
-        console.error('ytdl-core Error:', error.message);
-        
-        let errorMessage = 'فشل تحليل الفيديو. حاول مرة أخرى.';
-        if (error.message.includes('Video unavailable') || error.message.includes('private')) {
-            errorMessage = 'الفيديو غير متاح أو خاص.';
-        } else if (error.message.includes('This video is restricted')) {
-            errorMessage = 'الفيديو مقيد. لا يمكن تحميله.';
-        }
-        
-        res.status(500).json({ error: errorMessage });
+        console.error('API Error:', error);
+        res.status(500).json({ error: 'فشل تحليل الفيديو. حاول مرة أخرى.' });
     }
+}
+
+// دالة مساعدة لاستخراج معرف الفيديو
+function extractVideoId(url) {
+    const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[7].length === 11) ? match[7] : null;
 }
